@@ -14,8 +14,13 @@ $hero_title    = get_theme_mod( 'cbp_hero_title', 'Light that feels like' );
 $hero_title_em = get_theme_mod( 'cbp_hero_title_em', 'home' );
 $hero_subtitle = get_theme_mod( 'cbp_hero_subtitle', 'Small-batch soy candles poured by hand, inspired by the coastline, mountains and citrus groves of Cyprus.' );
 $hero_button   = get_theme_mod( 'cbp_hero_button_url', '' );
+$hero_button_label  = get_theme_mod( 'cbp_hero_button_label', 'Shop the Collection' );
+$hero_button2_label = get_theme_mod( 'cbp_hero_button2_label', 'Our Story' );
 $shop_url      = function_exists( 'wc_get_page_id' ) ? get_permalink( wc_get_page_id( 'shop' ) ) : home_url( '/shop/' );
 if ( ! $hero_button ) $hero_button = $shop_url;
+
+$home_id  = cbp_get_home_texts_page_id();
+$about_id = cbp_get_about_page_id();
 ?>
 
 <!-- HERO -->
@@ -29,10 +34,10 @@ if ( ! $hero_button ) $hero_button = $shop_url;
     <p class="hero-subtitle"><?php echo esc_html( $hero_subtitle ); ?></p>
     <div class="hero-actions">
       <a class="btn-pill btn-pill-dark" href="<?php echo esc_url( $hero_button ); ?>">
-        Shop the Collection
+        <?php echo esc_html( $hero_button_label ); ?>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
       </a>
-      <a class="btn-pill btn-pill-ghost" href="<?php echo esc_url( home_url( '/about/' ) ); ?>">Our Story</a>
+      <a class="btn-pill btn-pill-ghost" href="<?php echo esc_url( home_url( '/about/' ) ); ?>"><?php echo esc_html( $hero_button2_label ); ?></a>
     </div>
   </div>
   <div class="hero-image">
@@ -43,9 +48,9 @@ if ( ! $hero_button ) $hero_button = $shop_url;
 <!-- FEATURED -->
 <section class="featured">
   <div class="featured-header">
-    <span class="section-label">The Collection</span>
-    <h2>Our <em>Candles</em></h2>
-    <p>Each scent is a story. Find the one that speaks to you.</p>
+    <span class="section-label"><?php echo esc_html( cbp_page_text( $home_id, 'cbp_featured_eyebrow' ) ); ?></span>
+    <h2><?php echo esc_html( cbp_page_text( $home_id, 'cbp_featured_heading' ) ); ?> <em><?php echo esc_html( cbp_page_text( $home_id, 'cbp_featured_heading_em' ) ); ?></em></h2>
+    <p><?php echo esc_html( cbp_page_text( $home_id, 'cbp_featured_intro' ) ); ?></p>
   </div>
 
   <div class="products-grid">
@@ -66,7 +71,7 @@ if ( ! $hero_button ) $hero_button = $shop_url;
 
   <div class="featured-cta">
     <a class="btn-pill btn-pill-dark" href="<?php echo esc_url( $shop_url ); ?>">
-      View Full Shop
+      <?php echo esc_html( cbp_page_text( $home_id, 'cbp_featured_button' ) ); ?>
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
     </a>
   </div>
@@ -75,22 +80,22 @@ if ( ! $hero_button ) $hero_button = $shop_url;
 <!-- ABOUT TEASER -->
 <section class="about-teaser">
   <div class="about-teaser-image">
-    <img src="<?php echo esc_url( get_template_directory_uri() . '/assets/images/lavender-cozy.jpg' ); ?>" alt="A lit Candles by Petra candle surrounded by flowers">
+    <img src="<?php echo esc_url( cbp_page_text( $home_id, 'cbp_teaser_photo' ) ); ?>" alt="A lit Candles by Petra candle surrounded by flowers">
   </div>
   <div class="about-teaser-content">
-    <span class="section-label">My Story</span>
-    <h2>Made by hand in <em>Larnaca</em></h2>
-    <p>Every candle is poured in small batches using natural soy wax and premium fragrance oils, with the same care as the very first one I ever made.</p>
+    <span class="section-label"><?php echo esc_html( cbp_page_text( $home_id, 'cbp_teaser_eyebrow' ) ); ?></span>
+    <h2><?php echo esc_html( cbp_page_text( $home_id, 'cbp_teaser_heading' ) ); ?> <em><?php echo esc_html( cbp_page_text( $home_id, 'cbp_teaser_heading_em' ) ); ?></em></h2>
+    <p><?php echo esc_html( cbp_page_text( $home_id, 'cbp_teaser_text' ) ); ?></p>
     <div>
-      <a class="btn-pill btn-pill-ghost-light" href="<?php echo esc_url( home_url( '/about/' ) ); ?>">Read My Story</a>
+      <a class="btn-pill btn-pill-ghost-light" href="<?php echo esc_url( home_url( '/about/' ) ); ?>"><?php echo esc_html( cbp_page_text( $home_id, 'cbp_teaser_button' ) ); ?></a>
     </div>
   </div>
 </section>
 
-<!-- TESTIMONIAL -->
+<!-- TESTIMONIAL (same one edited on the About page, so Petra only updates it once) -->
 <section class="testimonial-section motif-olive">
-  <p class="testimonial-quote">&ldquo;The candles from Candles by Petra? Even the craftsmanship alone amazed me. I bought several the very first time: a few for myself, since I love a nicely scented home, and the rest to share with family and friends. And the result? Everyone was thrilled. They're beautiful decorations, almost a shame to light them, and they really fill the room with scent, burn for a long time, and I never have to worry whether they're safe to have at home. For your own home? Absolutely. As a gift? Perfect.&rdquo;</p>
-  <p class="testimonial-author">Sylvi, Czech expat in Cyprus</p>
+  <p class="testimonial-quote">&ldquo;<?php echo esc_html( cbp_page_text( $about_id, 'cbp_testimonial_quote' ) ); ?>&rdquo;</p>
+  <p class="testimonial-author"><?php echo esc_html( cbp_page_text( $about_id, 'cbp_testimonial_author' ) ); ?></p>
 </section>
 
 <?php get_footer(); ?>

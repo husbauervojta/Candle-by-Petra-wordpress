@@ -16,10 +16,10 @@ $scent_tag    = get_post_meta( $product->get_id(), '_cbp_scent_tag', true );
 $in_stock     = $product->is_in_stock();
 ?>
 <div class="product-card card reveal<?php echo $in_stock ? '' : ' outofstock'; ?>" data-name="<?php echo esc_attr( $product->get_name() ); ?>">
-  <div class="product-image">
-    <?php echo $product->get_image( 'large', array( 'onclick' => 'cbpOpenLightbox(this)' ) ); ?>
+  <a class="product-image" href="<?php echo esc_url( get_permalink( $product->get_id() ) ); ?>">
+    <?php echo $product->get_image( 'large' ); ?>
     <div class="flame"></div>
-  </div>
+  </a>
   <div class="product-card-body">
     <?php if ( $origin_label ) : ?>
       <div class="origin-badge">
@@ -32,6 +32,7 @@ $in_stock     = $product->is_in_stock();
       <p class="product-scent"><?php echo esc_html( $scent_tag ); ?></p>
     <?php endif; ?>
     <p class="product-price"><?php echo wp_kses_post( $product->get_price_html() ); ?></p>
+    <a class="product-view-details" href="<?php echo esc_url( get_permalink( $product->get_id() ) ); ?>">View Details</a>
 
     <?php if ( $in_stock ) : ?>
       <a href="<?php echo esc_url( $product->add_to_cart_url() ); ?>"

@@ -12,10 +12,12 @@
   function openCart() {
     document.getElementById('cart-overlay').classList.add('active');
     document.getElementById('cart-drawer').classList.add('active');
+    document.body.classList.add('cart-open');
   }
   function closeCart() {
     document.getElementById('cart-overlay').classList.remove('active');
     document.getElementById('cart-drawer').classList.remove('active');
+    document.body.classList.remove('cart-open');
   }
   window.cbpOpenCart = openCart;
   window.cbpCloseCart = closeCart;
@@ -49,5 +51,33 @@
         $(document.body).trigger('wc_fragments_refreshed');
       },
     });
+  });
+
+  // Gift-wrap checkbox inside the cart drawer (for items added straight from a product grid).
+  $(document.body).on('change', '.cbp-gift-wrap-toggle', function () {
+    var $box = $(this);
+    if (typeof wc_cart_fragments_params === 'undefined') return;
+
+    $.ajax({
+      url: wc_cart_fragments_params.ajax_url,
+      type: 'POST',
+      data: { action: 'cbp_toggle_gift_wrap', key: $box.data('cart-key'), checked: $box.is(':checked') ? 1 : 0 },
+      dataType: 'json',
+      success: function (response) {
+        if (!response || !response.fragments) return;
+        $.each(response.fragments, function (selector, html) {
+          $(selector).replaceWith(html);
+        });
+        $(document.body).trigger('wc_fragments_refreshed');
+      },
+    });
+  });
+
+  // Make the whole product card clickable (not just the photo/name), while still letting
+  // "Add to Cart" and any other real links/buttons on the card behave normally.
+  $(document.body).on('click', '.product-card', function (e) {
+    if ($(e.target).closest('a, button').length) return;
+    var link = this.querySelector('.product-image');
+    if (link) window.location.href = link.href;
   });
 })(jQuery);

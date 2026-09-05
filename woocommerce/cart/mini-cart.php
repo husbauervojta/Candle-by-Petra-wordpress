@@ -18,9 +18,17 @@ $cart_items_data = WC()->cart->get_cart();
       if ( ! $product || ! $product->exists() || $cart_item['quantity'] <= 0 ) continue;
       ?>
       <div class="cart-item" data-cart-key="<?php echo esc_attr( $cart_item_key ); ?>">
+        <div class="cart-item-image"><?php echo $product->get_image( 'thumbnail' ); ?></div>
         <div class="cart-item-info">
           <p class="cart-item-name"><?php echo wp_kses_post( $product->get_name() ); ?></p>
-          <p class="cart-item-price"><?php echo wp_kses_post( WC()->cart->get_product_subtotal( $product, $cart_item['quantity'] ) ); ?></p>
+          <label class="cart-item-gift-wrap">
+            <input type="checkbox" class="cbp-gift-wrap-toggle" data-cart-key="<?php echo esc_attr( $cart_item_key ); ?>" <?php checked( ! empty( $cart_item['cbp_gift_wrap'] ) ); ?> />
+            Gift wrapping (+<?php echo wp_kses_post( wc_price( CBP_GIFT_WRAP_FEE ) ); ?>)
+          </label>
+          <?php
+          $cbp_line_price = $product->get_price() + ( ! empty( $cart_item['cbp_gift_wrap'] ) ? CBP_GIFT_WRAP_FEE : 0 );
+          ?>
+          <p class="cart-item-price"><?php echo wp_kses_post( wc_price( $cbp_line_price * $cart_item['quantity'] ) ); ?></p>
         </div>
         <div class="cart-item-controls">
           <button type="button" class="qty-btn cbp-qty-minus" data-cart-key="<?php echo esc_attr( $cart_item_key ); ?>">&minus;</button>
@@ -40,9 +48,19 @@ $cart_items_data = WC()->cart->get_cart();
 
 <div class="cart-footer">
   <div class="cart-total-row">
+    <span>Subtotal</span>
+    <span><?php wc_cart_totals_subtotal_html(); ?></span>
+  </div>
+  <?php if ( WC()->cart->needs_shipping() ) : ?>
+  <div class="cart-total-row">
+    <span>Shipping</span>
+    <span><?php echo wp_kses_post( wc_price( WC()->cart->get_shipping_total() ) ); ?></span>
+  </div>
+  <?php endif; ?>
+  <div class="cart-total-row cart-total-row-final">
     <span>Total</span>
     <span><?php wc_cart_totals_order_total_html(); ?></span>
   </div>
   <a class="btn-checkout" href="<?php echo esc_url( wc_get_checkout_url() ); ?>">Proceed to Checkout</a>
-  <p class="cart-note">Cyprus only &middot; Shipping &amp; handling: &euro;6</p>
+  <p class="cart-note">Cyprus only</p>
 </div>

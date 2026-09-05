@@ -11,9 +11,13 @@
 
 <!-- NAV -->
 <nav>
-  <a class="nav-logo" href="<?php echo esc_url( home_url( '/' ) ); ?>">
-    <img src="<?php echo esc_url( get_template_directory_uri() . '/assets/images/logo.png' ); ?>" alt="Candles by Petra">
-  </a>
+  <?php if ( has_custom_logo() ) : ?>
+    <div class="nav-logo"><?php the_custom_logo(); ?></div>
+  <?php else : ?>
+    <a class="nav-logo" href="<?php echo esc_url( home_url( '/' ) ); ?>">
+      <img src="<?php echo esc_url( get_template_directory_uri() . '/assets/images/logo.png' ); ?>" alt="Candles by Petra">
+    </a>
+  <?php endif; ?>
   <?php
   wp_nav_menu( array(
     'theme_location' => 'primary',
