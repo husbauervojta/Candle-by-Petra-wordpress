@@ -196,6 +196,19 @@ function cbp_customize_register( $wp_customize ) {
 	$wp_customize->add_control( 'cbp_footer_signoff', array(
 		'label' => 'Text vpravo dole', 'section' => 'cbp_footer_section', 'type' => 'text',
 	) );
+
+	/* ── Dárkové balení: náhledová fotka vedle zaškrtávátka na stránce produktu ── */
+	$wp_customize->add_section( 'cbp_gift_wrap_section', array(
+		'title'    => 'Dárkové balení',
+		'priority' => 32,
+	) );
+
+	$wp_customize->add_setting( 'cbp_gift_wrap_image', array( 'default' => '' ) );
+	$wp_customize->add_control( new WP_Customize_Image_Control( $wp_customize, 'cbp_gift_wrap_image', array(
+		'label'       => 'Náhledová fotka balení',
+		'description' => 'Zobrazí se vedle nabídky "Add gift wrapping" na stránce každé svíčky.',
+		'section'     => 'cbp_gift_wrap_section',
+	) ) );
 }
 add_action( 'customize_register', 'cbp_customize_register' );
 
@@ -582,10 +595,13 @@ define( 'CBP_GIFT_WRAP_FEE', 2 );
 
 add_action( 'woocommerce_before_add_to_cart_button', 'cbp_gift_wrap_field' );
 function cbp_gift_wrap_field() {
-	printf(
-		'<label class="cbp-gift-wrap"><input type="checkbox" name="cbp_gift_wrap" value="1" /> Add gift wrapping (+%s)</label>',
-		wc_price( CBP_GIFT_WRAP_FEE )
-	);
+	$image = get_theme_mod( 'cbp_gift_wrap_image', '' );
+	echo '<label class="cbp-gift-wrap">';
+	if ( $image ) {
+		echo '<img class="cbp-gift-wrap-photo" src="' . esc_url( $image ) . '" alt="Gift wrapping">';
+	}
+	echo '<span class="cbp-gift-wrap-text"><input type="checkbox" name="cbp_gift_wrap" value="1" /> Add gift wrapping (+' . wc_price( CBP_GIFT_WRAP_FEE ) . ')</span>';
+	echo '</label>';
 }
 
 add_filter( 'woocommerce_add_cart_item_data', 'cbp_save_gift_wrap_choice', 10, 2 );
@@ -622,4 +638,305 @@ function cbp_save_gift_wrap_on_order( $item, $cart_item_key, $values ) {
 	if ( ! empty( $values['cbp_gift_wrap'] ) ) {
 		$item->add_meta_data( 'Gift wrapping', '+' . wc_price( CBP_GIFT_WRAP_FEE ) );
 	}
+}
+
+/* ══════════════════════════════════════════════
+   MATERIÁLY A VÝROBA
+   Sleduje suroviny (vosk, knoty, vůně...) odděleně od hotových svíček ve WooCommerce.
+   U každé svíčky se nastaví "recept" (kolik které suroviny na 1 kus), a při zápisu
+   výroby se suroviny samy odečtou ze skladu a hotové kusy samy přičtou do WooCommerce.
+   ══════════════════════════════════════════════ */
+
+/* ── 1. Materiály (vlastní typ obsahu) ── */
+function cbp_register_material_cpt() {
+	register_post_type( 'cbp_material', array(
+		'labels' => array(
+			'name'          => 'Materiály',
+			'singular_name' => 'Materiál',
+			'add_new_item'  => 'Přidat materiál',
+			'edit_item'     => 'Upravit materiál',
+			'all_items'     => 'Všechny materiály',
+		),
+		'public'       => false,
+		'show_ui'      => true,
+		'show_in_menu' => true,
+		'menu_icon'    => 'dashicons-database',
+		'menu_position'=> 56,
+		'supports'     => array( 'title' ),
+	) );
+}
+add_action( 'init', 'cbp_register_material_cpt' );
+
+function cbp_material_meta_box() {
+	add_meta_box( 'cbp_material_data', 'Údaje o materiálu', function ( $post ) {
+		wp_nonce_field( 'cbp_material_save', 'cbp_material_nonce' );
+		$unit  = get_post_meta( $post->ID, '_cbp_material_unit', true );
+		$cost  = get_post_meta( $post->ID, '_cbp_material_cost', true );
+		$stock = get_post_meta( $post->ID, '_cbp_material_stock', true );
+		?>
+		<p>
+			<label><strong>Jednotka</strong> (např. g, ml, ks)</label><br>
+			<input type="text" name="cbp_material_unit" value="<?php echo esc_attr( $unit ); ?>" style="width:100%;">
+		</p>
+		<p>
+			<label><strong>Cena za 1 jednotku (€)</strong></label><br>
+			<input type="number" step="0.001" min="0" name="cbp_material_cost" value="<?php echo esc_attr( $cost ); ?>" style="width:100%;">
+		</p>
+		<p>
+			<label><strong>Množství skladem</strong></label><br>
+			<input type="number" step="0.01" name="cbp_material_stock" value="<?php echo esc_attr( $stock ); ?>" style="width:100%;">
+			<span style="color:#787c82;"><?php echo esc_html( $unit ?: 'jednotek' ); ?></span>
+		</p>
+		<?php
+	}, 'cbp_material', 'normal', 'high' );
+}
+add_action( 'add_meta_boxes', 'cbp_material_meta_box' );
+
+function cbp_save_material_meta( $post_id ) {
+	if ( ! isset( $_POST['cbp_material_nonce'] ) || ! wp_verify_nonce( $_POST['cbp_material_nonce'], 'cbp_material_save' ) ) return;
+	if ( isset( $_POST['cbp_material_unit'] ) ) {
+		update_post_meta( $post_id, '_cbp_material_unit', sanitize_text_field( wp_unslash( $_POST['cbp_material_unit'] ) ) );
+	}
+	if ( isset( $_POST['cbp_material_cost'] ) ) {
+		update_post_meta( $post_id, '_cbp_material_cost', wc_format_decimal( $_POST['cbp_material_cost'] ) );
+	}
+	if ( isset( $_POST['cbp_material_stock'] ) ) {
+		update_post_meta( $post_id, '_cbp_material_stock', wc_format_decimal( $_POST['cbp_material_stock'] ) );
+	}
+}
+add_action( 'save_post_cbp_material', 'cbp_save_material_meta' );
+
+/* Sloupce v seznamu materiálů, ať je hned vidět stav skladu bez otvírání každého zvlášť. */
+add_filter( 'manage_cbp_material_posts_columns', function ( $columns ) {
+	$columns['cbp_stock'] = 'Skladem';
+	$columns['cbp_cost']  = 'Cena/jednotka';
+	return $columns;
+} );
+add_action( 'manage_cbp_material_posts_custom_column', function ( $column, $post_id ) {
+	if ( 'cbp_stock' === $column ) {
+		$unit = get_post_meta( $post_id, '_cbp_material_unit', true );
+		echo esc_html( get_post_meta( $post_id, '_cbp_material_stock', true ) . ' ' . $unit );
+	}
+	if ( 'cbp_cost' === $column ) {
+		echo wp_kses_post( wc_price( get_post_meta( $post_id, '_cbp_material_cost', true ) ) );
+	}
+}, 10, 2 );
+
+/* ── 2. Recept u svíčky (kolik které suroviny na 1 kus) ── */
+function cbp_recipe_meta_box() {
+	add_meta_box( 'cbp_recipe', 'Recept (suroviny na 1 kus)', 'cbp_render_recipe_meta_box', 'product', 'normal', 'high' );
+}
+add_action( 'add_meta_boxes', 'cbp_recipe_meta_box' );
+
+function cbp_render_recipe_meta_box( $post ) {
+	wp_nonce_field( 'cbp_recipe_save', 'cbp_recipe_nonce' );
+	$recipe    = get_post_meta( $post->ID, '_cbp_recipe', true );
+	$recipe    = is_array( $recipe ) ? $recipe : array();
+	$materials = get_posts( array( 'post_type' => 'cbp_material', 'numberposts' => -1, 'orderby' => 'title', 'order' => 'ASC' ) );
+
+	if ( empty( $materials ) ) {
+		echo '<p>Nejdřív přidej alespoň jeden materiál v sekci <strong>Materiály</strong> v menu vlevo.</p>';
+		return;
+	}
+	?>
+	<table class="widefat" id="cbp-recipe-table">
+		<thead><tr><th>Materiál</th><th style="width:140px;">Množství na 1 kus</th><th style="width:40px;"></th></tr></thead>
+		<tbody>
+			<?php foreach ( $recipe as $row ) : ?>
+				<tr>
+					<td>
+						<select name="cbp_recipe_material[]" style="width:100%;">
+							<?php foreach ( $materials as $m ) : ?>
+								<option value="<?php echo esc_attr( $m->ID ); ?>" <?php selected( $row['material_id'], $m->ID ); ?>><?php echo esc_html( $m->post_title ); ?></option>
+							<?php endforeach; ?>
+						</select>
+					</td>
+					<td><input type="number" step="0.01" min="0" name="cbp_recipe_qty[]" value="<?php echo esc_attr( $row['qty'] ); ?>" style="width:100%;"></td>
+					<td><button type="button" class="button cbp-recipe-remove">&times;</button></td>
+				</tr>
+			<?php endforeach; ?>
+		</tbody>
+	</table>
+	<p><button type="button" class="button" id="cbp-recipe-add">+ Přidat surovinu</button></p>
+	<p><strong>Cena výroby 1 kusu: <span id="cbp-recipe-total"><?php echo wp_kses_post( wc_price( cbp_recipe_cost( $post->ID ) ) ); ?></span></strong>
+	<br><span style="color:#787c82;">(dopočítá se po uložení produktu, podle aktuálních cen materiálů)</span></p>
+
+	<template id="cbp-recipe-row-template">
+		<tr>
+			<td>
+				<select name="cbp_recipe_material[]" style="width:100%;">
+					<?php foreach ( $materials as $m ) : ?>
+						<option value="<?php echo esc_attr( $m->ID ); ?>"><?php echo esc_html( $m->post_title ); ?></option>
+					<?php endforeach; ?>
+				</select>
+			</td>
+			<td><input type="number" step="0.01" min="0" name="cbp_recipe_qty[]" value="" style="width:100%;"></td>
+			<td><button type="button" class="button cbp-recipe-remove">&times;</button></td>
+		</tr>
+	</template>
+	<script>
+	jQuery(function ($) {
+		$('#cbp-recipe-add').on('click', function () {
+			var row = document.getElementById('cbp-recipe-row-template').content.cloneNode(true);
+			$('#cbp-recipe-table tbody').append(row);
+		});
+		$('#cbp-recipe-table').on('click', '.cbp-recipe-remove', function () {
+			$(this).closest('tr').remove();
+		});
+	});
+	</script>
+	<?php
+}
+
+function cbp_recipe_cost( $product_id ) {
+	$recipe = get_post_meta( $product_id, '_cbp_recipe', true );
+	if ( ! is_array( $recipe ) ) return 0;
+	$total = 0;
+	foreach ( $recipe as $row ) {
+		$cost = (float) get_post_meta( $row['material_id'], '_cbp_material_cost', true );
+		$total += $cost * (float) $row['qty'];
+	}
+	return $total;
+}
+
+function cbp_save_recipe_meta( $post_id ) {
+	if ( ! isset( $_POST['cbp_recipe_nonce'] ) || ! wp_verify_nonce( $_POST['cbp_recipe_nonce'], 'cbp_recipe_save' ) ) return;
+	$materials = isset( $_POST['cbp_recipe_material'] ) ? array_map( 'intval', $_POST['cbp_recipe_material'] ) : array();
+	$qtys      = isset( $_POST['cbp_recipe_qty'] ) ? array_map( 'wc_format_decimal', $_POST['cbp_recipe_qty'] ) : array();
+	$recipe    = array();
+	foreach ( $materials as $i => $material_id ) {
+		if ( ! $material_id || empty( $qtys[ $i ] ) ) continue;
+		$recipe[] = array( 'material_id' => $material_id, 'qty' => $qtys[ $i ] );
+	}
+	update_post_meta( $post_id, '_cbp_recipe', $recipe );
+}
+add_action( 'woocommerce_process_product_meta', 'cbp_save_recipe_meta' );
+
+/* ── 3. Zápis výroby (spotřebuje materiály, přičte hotové kusy do WooCommerce) ── */
+function cbp_materials_admin_menu() {
+	add_submenu_page( 'edit.php?post_type=cbp_material', 'Zaznamenat výrobu', 'Zaznamenat výrobu', 'manage_woocommerce', 'cbp-production', 'cbp_render_production_page' );
+	add_submenu_page( 'edit.php?post_type=cbp_material', 'Historie výroby', 'Historie výroby', 'manage_woocommerce', 'cbp-production-log', 'cbp_render_production_log_page' );
+}
+add_action( 'admin_menu', 'cbp_materials_admin_menu' );
+
+function cbp_render_production_page() {
+	$notice = '';
+	if ( isset( $_POST['cbp_production_nonce'] ) && wp_verify_nonce( $_POST['cbp_production_nonce'], 'cbp_production_save' ) ) {
+		$notice = cbp_process_production();
+	}
+
+	$products_with_recipe = array();
+	$all_products = wc_get_products( array( 'limit' => -1, 'status' => 'publish' ) );
+	foreach ( $all_products as $p ) {
+		$recipe = get_post_meta( $p->get_id(), '_cbp_recipe', true );
+		if ( ! empty( $recipe ) ) $products_with_recipe[] = $p;
+	}
+	?>
+	<div class="wrap">
+		<h1>Zaznamenat výrobu</h1>
+		<?php if ( $notice ) echo $notice; ?>
+
+		<?php if ( empty( $products_with_recipe ) ) : ?>
+			<p>Žádná svíčka zatím nemá vyplněný recept. Otevři svíčku v <strong>Produkty</strong> a vyplň box "Recept (suroviny na 1 kus)".</p>
+		<?php else : ?>
+			<form method="post">
+				<?php wp_nonce_field( 'cbp_production_save', 'cbp_production_nonce' ); ?>
+				<table class="form-table">
+					<tr>
+						<th><label for="cbp_product_id">Svíčka</label></th>
+						<td>
+							<select name="cbp_product_id" id="cbp_product_id">
+								<?php foreach ( $products_with_recipe as $p ) : ?>
+									<option value="<?php echo esc_attr( $p->get_id() ); ?>"><?php echo esc_html( $p->get_name() ); ?></option>
+								<?php endforeach; ?>
+							</select>
+						</td>
+					</tr>
+					<tr>
+						<th><label for="cbp_qty_made">Kolik kusů jsi vyrobila</label></th>
+						<td><input type="number" min="1" step="1" name="cbp_qty_made" id="cbp_qty_made" value="1" required></td>
+					</tr>
+				</table>
+				<?php submit_button( 'Zapsat výrobu' ); ?>
+			</form>
+		<?php endif; ?>
+	</div>
+	<?php
+}
+
+function cbp_process_production() {
+	$product_id = isset( $_POST['cbp_product_id'] ) ? intval( $_POST['cbp_product_id'] ) : 0;
+	$qty_made   = isset( $_POST['cbp_qty_made'] ) ? max( 1, intval( $_POST['cbp_qty_made'] ) ) : 0;
+	$product    = $product_id ? wc_get_product( $product_id ) : false;
+
+	if ( ! $product || ! $qty_made ) {
+		return '<div class="notice notice-error"><p>Něco chybí, zkus to prosím znovu.</p></div>';
+	}
+
+	$recipe   = get_post_meta( $product_id, '_cbp_recipe', true );
+	$recipe   = is_array( $recipe ) ? $recipe : array();
+	$warnings = array();
+
+	foreach ( $recipe as $row ) {
+		$needed        = (float) $row['qty'] * $qty_made;
+		$current_stock = (float) get_post_meta( $row['material_id'], '_cbp_material_stock', true );
+		$new_stock     = $current_stock - $needed;
+		update_post_meta( $row['material_id'], '_cbp_material_stock', $new_stock );
+		if ( $new_stock < 0 ) {
+			$warnings[] = get_the_title( $row['material_id'] ) . ' (chybí ' . number_format( abs( $new_stock ), 2 ) . ')';
+		}
+	}
+
+	$new_product_stock = (int) $product->get_stock_quantity() + $qty_made;
+	$product->set_manage_stock( true );
+	$product->set_stock_quantity( $new_product_stock );
+	$product->set_stock_status( $new_product_stock > 0 ? 'instock' : 'outofstock' );
+	$product->save();
+
+	$cost_per_unit = cbp_recipe_cost( $product_id );
+	$total_cost    = $cost_per_unit * $qty_made;
+
+	$log   = get_option( 'cbp_production_log', array() );
+	array_unshift( $log, array(
+		'date'         => current_time( 'd.m.Y H:i' ),
+		'product_name' => $product->get_name(),
+		'qty'          => $qty_made,
+		'cost_total'   => $total_cost,
+	) );
+	update_option( 'cbp_production_log', array_slice( $log, 0, 200 ) );
+
+	$msg  = '<div class="notice notice-success"><p>Zapsáno: <strong>' . esc_html( $qty_made ) . '&times; ' . esc_html( $product->get_name() ) . '</strong>, ';
+	$msg .= 'nový sklad svíček: ' . esc_html( $new_product_stock ) . ' ks, celková cena výroby: ' . wp_kses_post( wc_price( $total_cost ) ) . '.</p></div>';
+
+	if ( $warnings ) {
+		$msg .= '<div class="notice notice-warning"><p><strong>Pozor, tyhle materiály jdou do mínusu (dojdou ti dřív, než myslíš):</strong><br>' . esc_html( implode( ', ', $warnings ) ) . '</p></div>';
+	}
+
+	return $msg;
+}
+
+function cbp_render_production_log_page() {
+	$log = get_option( 'cbp_production_log', array() );
+	?>
+	<div class="wrap">
+		<h1>Historie výroby</h1>
+		<?php if ( empty( $log ) ) : ?>
+			<p>Zatím žádná zapsaná výroba.</p>
+		<?php else : ?>
+			<table class="widefat striped">
+				<thead><tr><th>Datum</th><th>Svíčka</th><th>Počet kusů</th><th>Cena výroby celkem</th></tr></thead>
+				<tbody>
+					<?php foreach ( $log as $entry ) : ?>
+						<tr>
+							<td><?php echo esc_html( $entry['date'] ); ?></td>
+							<td><?php echo esc_html( $entry['product_name'] ); ?></td>
+							<td><?php echo esc_html( $entry['qty'] ); ?></td>
+							<td><?php echo wp_kses_post( wc_price( $entry['cost_total'] ) ); ?></td>
+						</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+		<?php endif; ?>
+	</div>
+	<?php
 }
