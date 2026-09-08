@@ -185,7 +185,14 @@ if ( $related_ids ) : ?>
     btn.addEventListener('click', function () {
       var full = btn.getAttribute('data-full');
       var mainImg = document.querySelector('#product-main-image img');
-      if (mainImg && full) mainImg.src = full;
+      if (mainImg && full) {
+        // The browser prefers srcset/sizes over src when both are present, so a stale
+        // srcset (still listing only the original photo's own sizes) silently overrides
+        // our src change and the visible image never updates. Drop them so src wins.
+        mainImg.removeAttribute('srcset');
+        mainImg.removeAttribute('sizes');
+        mainImg.src = full;
+      }
       document.querySelectorAll('.product-thumb').forEach(function (b) { b.classList.remove('active'); });
       btn.classList.add('active');
     });
